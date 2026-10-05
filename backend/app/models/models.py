@@ -23,7 +23,7 @@ class Candidate(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     hall_id: Mapped[int] = mapped_column(ForeignKey("halls.id"))
     name: Mapped[str] = mapped_column(String(64))
-    ticket_no: Mapped[str] = mapped_column(String(32))
+    ticket_no: Mapped[str] = mapped_column(String(32), unique=True)
     paper_id: Mapped[int] = mapped_column(ForeignKey("paper_sets.id"))
 
 class SeatPlan(Base):

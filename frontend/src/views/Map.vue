@@ -4,8 +4,8 @@ import { api } from '../api'
 const data = ref<any>(null)
 const candidates = ref<any[]>([])
 const violKeys = ref<Set<string>>(new Set())
-async function run() {
-  data.value = await api('/seating/run?hall_id=1', { method: 'POST' })
+
+async function syncViolations() {
   try {
     const v = await api('/seating/violations?hall_id=1')
     const keys = new Set<string>()
@@ -16,9 +16,19 @@ async function run() {
     violKeys.value = keys
   } catch { violKeys.value = new Set() }
 }
+
+// Explicit re-seat only. This is the single action that recomputes the plan
+// with the current roster; opening the map never refreshes existing seats.
+async function run() {
+  data.value = await api('/seating/run?hall_id=1', { method: 'POST' })
+  await syncViolations()
+}
+
 onMounted(async () => {
   candidates.value = await api('/candidates')
-  await run()
+  // Read the pinned current plan; do NOT auto-run after a batch intake.
+  data.value = await api('/seating/latest?hall_id=1')
+  await syncViolations()
 })
 const gridStyle = computed(() => data.value ? ({ gridTemplateColumns: `repeat(${data.value.cols}, 72px)` }) : {})
 const cells = computed(() => {
@@ -46,9 +56,15 @@ function paperClass(pid: number) {
   <h1>考场课桌网格</h1>
   <p class="sub">课桌网格为主视图 · 左侧考生名册夹板 · 违规课桌高亮</p>
   <button class="btn" @click="run">重新排座</button>
+  <p v-if="data && data.id == null" class="muted" style="font-size:0.8rem;margin:0.5rem 0 0">
+    尚无排座方案，点击「重新排座」按当前名单生成。新录入的考生不会自动上座。
+  </p>
+  <p v-else class="muted" style="font-size:0.8rem;margin:0.5rem 0 0">
+    当前显示已保存方案（#{{ data?.id }}）。批量录入后此图保持不变，需再次「重新排座」才按新名单现算。
+  </p>
   <div class="hs-classroom" style="margin-top:0.85rem">
     <aside class="hs-clipboard">
-      <h2>考生名册</h2>
+      <h2>考生名册（{{ candidates.length }} 人）</h2>
       <div v-for="c in candidates" :key="c.id" class="hs-roster-row">
         <div>
           <div>{{ c.name }}</div>

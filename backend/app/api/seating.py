@@ -24,9 +24,26 @@ def run_seating(hall_id: int = 1, db: Session = Depends(get_db)):
 
 @router.get("/latest")
 def latest(hall_id: int = 1, db: Session = Depends(get_db)):
+    """Return the stored plan only. Never computes one.
+
+    Reading the map after a successful batch intake keeps the old plan pinned;
+    new candidates show up only after an explicit POST /seating/run.
+    """
+    hall = db.get(Hall, hall_id)
+    if not hall:
+        raise HTTPException(404, "考室不存在")
     plan = db.scalars(select(SeatPlan).where(SeatPlan.hall_id == hall_id).order_by(SeatPlan.id.desc())).first()
     if not plan:
-        return run_seating(hall_id=hall_id, db=db)
+        return {
+            "id": None,
+            "rows": hall.rows,
+            "cols": hall.cols,
+            "assignments": [],
+            "unplaced": [],
+            "violations": [],
+            "stats": {"seated": 0, "unplaced": 0, "violations": 0, "capacity": hall.rows * hall.cols},
+            "hall": {"id": hall.id, "name": hall.name, "min_manhattan": hall.min_manhattan},
+        }
     data = json.loads(plan.result_json)
     return {"id": plan.id, **data}
 
